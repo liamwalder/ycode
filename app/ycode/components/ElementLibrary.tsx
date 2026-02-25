@@ -38,6 +38,7 @@ import { cn, generateId } from '@/lib/utils';
 import { toast } from 'sonner';
 import { componentsApi } from '@/lib/api';
 import type { Layer } from '@/types';
+import ComponentCard from './ComponentCard';
 import SaveLayoutDialog from './SaveLayoutDialog';
 import { usePagesStore } from '@/stores/usePagesStore';
 import { useEditorStore } from '@/stores/useEditorStore';
@@ -1491,31 +1492,36 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                 </div>
                 <div className="grid grid-cols-1 gap-1.5 pb-5">
                   {components.map((component) => (
-                    <div key={component.id} className="group flex flex-col gap-1.5">
-                      <ElementButton
-                        elementType={component.id}
-                        source="components"
-                        name={component.name}
-                        icon="component"
-                        onClick={() => handleAddComponent(component.id)}
-                        onDragStart={handleElementDragStart}
-                        variant="card"
-                      >
-                        <Image
-                          src={component.thumbnail_url
-                            ? `${component.thumbnail_url}?v=${new Date(component.updated_at).getTime()}`
-                            : DEFAULT_ASSETS.IMAGE}
-                          alt={component.name}
-                          width={640}
-                          height={262}
-                          unoptimized
-                          className="object-contain w-full h-full rounded pointer-events-none"
-                        />
-                      </ElementButton>
-                      <div className="flex items-center gap-1 px-0.5 min-w-0">
-                        <span className="flex-1 truncate text-xs font-medium" title={component.name}>
-                          {component.name}
-                        </span>
+                    <ComponentCard
+                      key={component.id}
+                      component={component}
+                      onClick={() => handleAddComponent(component.id)}
+                      onMouseDown={(e) => {
+                        if (e.button !== 0) return;
+                        const startX = e.clientX;
+                        const startY = e.clientY;
+                        let dragging = false;
+
+                        const handleMouseMove = (moveEvent: MouseEvent) => {
+                          const dx = moveEvent.clientX - startX;
+                          const dy = moveEvent.clientY - startY;
+                          if (!dragging && Math.sqrt(dx * dx + dy * dy) > 5) {
+                            dragging = true;
+                            handleElementDragStart(e, component.id, 'components', component.name);
+                          }
+                        };
+
+                        const handleMouseUp = () => {
+                          document.removeEventListener('mousemove', handleMouseMove);
+                          document.removeEventListener('mouseup', handleMouseUp);
+                          if (!dragging) handleAddComponent(component.id);
+                          dragging = false;
+                        };
+
+                        document.addEventListener('mousemove', handleMouseMove);
+                        document.addEventListener('mouseup', handleMouseUp);
+                      }}
+                      actions={
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
@@ -1532,8 +1538,8 @@ export default function ElementLibrary({ isOpen, onClose, defaultTab = 'elements
                             <DropdownMenuItem onClick={(e) => handleDeleteClick(component, e)}>Delete</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
-                      </div>
-                    </div>
+                      }
+                    />
                   ))}
                 </div>
               </div>

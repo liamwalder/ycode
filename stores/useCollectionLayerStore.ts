@@ -21,6 +21,8 @@ interface CollectionLayerState {
   // Pagination state
   paginationMeta: Record<string, CollectionPaginationMeta>; // Pagination meta per layer
   paginationLoading: Record<string, boolean>; // Loading state for pagination per layer
+  // Bumped after CMS updates to signal the canvas should re-fetch
+  invalidationKey: number;
 }
 
 interface CollectionLayerActions {
@@ -36,6 +38,7 @@ interface CollectionLayerActions {
   clearLayerData: (layerId: string) => void;
   clearAllLayerData: () => void;
   updateItemInLayerData: (itemId: string, values: Record<string, string>) => void;
+  invalidateLayerData: (collectionId: string) => void;
   refetchLayersForCollection: (collectionId: string) => Promise<void>;
   // Pagination actions
   fetchPage: (layerId: string, page: number) => Promise<{ items: CollectionItemWithValues[]; meta: CollectionPaginationMeta } | null>;
@@ -54,6 +57,7 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
   referencedLoading: {},
   paginationMeta: {},
   paginationLoading: {},
+  invalidationKey: 0,
 
   // Fetch items for a referenced collection (used for reference field resolution)
   fetchReferencedCollectionItems: async (collectionId: string) => {
@@ -202,6 +206,25 @@ export const useCollectionLayerStore = create<CollectionLayerStore>((set, get) =
       });
 
       return { layerData: newLayerData };
+    });
+  },
+
+  // Invalidate cached layer data for a specific collection so the next fetchLayerData call bypasses the config-match check.
+  // Also clears referenced items cache since reference fields may point to this collection.
+  invalidateLayerData: (collectionId: string) => {
+    const { layerConfig, referencedItems } = get();
+    const updatedConfig = { ...layerConfig };
+    for (const [layerId, config] of Object.entries(updatedConfig)) {
+      if (config.collectionId === collectionId) {
+        delete updatedConfig[layerId];
+      }
+    }
+    const updatedReferenced = { ...referencedItems };
+    delete updatedReferenced[collectionId];
+    set({
+      layerConfig: updatedConfig,
+      referencedItems: updatedReferenced,
+      invalidationKey: get().invalidationKey + 1,
     });
   },
 

@@ -42,6 +42,7 @@ import SelectOptionsSettings from './SelectOptionsSettings';
 import LabelSettings from './LabelSettings';
 import LinkSettings, { type LinkSettingsValue } from './LinkSettings';
 import RichTextEditor from './RichTextEditor';
+import ComponentVariableOverrides from './ComponentVariableOverrides';
 import InteractionsPanel from './InteractionsPanel';
 import LayoutControls from './LayoutControls';
 import LayerStylesPanel from './LayerStylesPanel';
@@ -77,7 +78,6 @@ import { buildFieldGroups, getFieldIcon, isMultipleAssetField, MULTI_ASSET_COLLE
 
 // 7. Types
 import type { Layer, FieldVariable, CollectionField, CollectionVariable } from '@/types';
-import { createTextComponentVariableValue, extractTiptapFromComponentVariable } from '@/lib/variable-utils';
 import { Empty, EmptyDescription, EmptyMedia, EmptyTitle } from '@/components/ui/empty';
 import {
   DropdownMenu,
@@ -1678,146 +1678,12 @@ const RightSidebar = React.memo(function RightSidebar({
     };
 
     const allVariables = component.variables || [];
-    const textVariables = allVariables.filter(v => !v.type || v.type === 'text');
-    const imageVariables = allVariables.filter(v => v.type === 'image');
-    const linkVariables = allVariables.filter(v => v.type === 'link');
-    const audioVariables = allVariables.filter(v => v.type === 'audio');
-    const videoVariables = allVariables.filter(v => v.type === 'video');
-    const iconVariables = allVariables.filter(v => v.type === 'icon');
-    const currentTextOverrides = selectedLayer.componentOverrides?.text || {};
-    const currentImageOverrides = selectedLayer.componentOverrides?.image || {};
-    const currentLinkOverrides = selectedLayer.componentOverrides?.link || {};
-    const currentAudioOverrides = selectedLayer.componentOverrides?.audio || {};
-    const currentVideoOverrides = selectedLayer.componentOverrides?.video || {};
-    const currentIconOverrides = selectedLayer.componentOverrides?.icon || {};
+    const overrides = selectedLayer.componentOverrides;
+    const hasOverrides = ['text', 'image', 'link', 'audio', 'video', 'icon']
+      .some(cat => Object.keys(overrides?.[cat as keyof typeof overrides] || {}).length > 0);
 
-    // Extract Tiptap content from text ComponentVariableValue
-    // Falls back to variable's default_value if no override is set
-    const getOverrideValue = (variableId: string) => {
-      const overrideValue = currentTextOverrides[variableId];
-      const variableDef = textVariables.find(v => v.id === variableId);
-
-      // Use override if set, otherwise fall back to default value
-      const value = overrideValue ?? variableDef?.default_value;
-
-      // Extract Tiptap content using utility function
-      return extractTiptapFromComponentVariable(value);
-    };
-
-    // Get image override value (ImageSettingsValue)
-    const getImageOverrideValue = (variableId: string) => {
-      const overrideValue = currentImageOverrides[variableId];
-      const variableDef = imageVariables.find(v => v.id === variableId);
-
-      // Use override if set, otherwise fall back to default value
-      return (overrideValue ?? variableDef?.default_value) as ImageSettingsValue | undefined;
-    };
-
-    // Store override as text ComponentVariableValue (DynamicRichTextVariable)
-    const handleVariableOverrideChange = (variableId: string, tiptapContent: any) => {
-      // Store as DynamicRichTextVariable to preserve formatting
-      const variableValue = createTextComponentVariableValue(tiptapContent);
-      onLayerUpdate(selectedLayerId!, {
-        componentOverrides: {
-          ...selectedLayer.componentOverrides,
-          text: {
-            ...currentTextOverrides,
-            [variableId]: variableValue,
-          },
-        },
-      });
-    };
-
-    // Store image override as ImageSettingsValue
-    const handleImageVariableOverrideChange = (variableId: string, value: ImageSettingsValue) => {
-      onLayerUpdate(selectedLayerId!, {
-        componentOverrides: {
-          ...selectedLayer.componentOverrides,
-          image: {
-            ...currentImageOverrides,
-            [variableId]: value,
-          },
-        },
-      });
-    };
-
-    // Get link override value (LinkSettingsValue)
-    const getLinkOverrideValue = (variableId: string) => {
-      const overrideValue = currentLinkOverrides[variableId];
-      const variableDef = linkVariables.find(v => v.id === variableId);
-
-      // Use override if set, otherwise fall back to default value
-      return (overrideValue ?? variableDef?.default_value) as LinkSettingsValue | undefined;
-    };
-
-    // Store link override as LinkSettingsValue
-    const handleLinkVariableOverrideChange = (variableId: string, value: LinkSettingsValue) => {
-      onLayerUpdate(selectedLayerId!, {
-        componentOverrides: {
-          ...selectedLayer.componentOverrides,
-          link: {
-            ...currentLinkOverrides,
-            [variableId]: value,
-          },
-        },
-      });
-    };
-
-    // Get audio override value
-    const getAudioOverrideValue = (variableId: string) => {
-      const overrideValue = currentAudioOverrides[variableId];
-      const variableDef = audioVariables.find(v => v.id === variableId);
-      return (overrideValue ?? variableDef?.default_value) as AudioSettingsValue | undefined;
-    };
-
-    const handleAudioVariableOverrideChange = (variableId: string, value: AudioSettingsValue) => {
-      onLayerUpdate(selectedLayerId!, {
-        componentOverrides: {
-          ...selectedLayer.componentOverrides,
-          audio: {
-            ...currentAudioOverrides,
-            [variableId]: value,
-          },
-        },
-      });
-    };
-
-    // Get video override value
-    const getVideoOverrideValue = (variableId: string) => {
-      const overrideValue = currentVideoOverrides[variableId];
-      const variableDef = videoVariables.find(v => v.id === variableId);
-      return (overrideValue ?? variableDef?.default_value) as VideoSettingsValue | undefined;
-    };
-
-    const handleVideoVariableOverrideChange = (variableId: string, value: VideoSettingsValue) => {
-      onLayerUpdate(selectedLayerId!, {
-        componentOverrides: {
-          ...selectedLayer.componentOverrides,
-          video: {
-            ...currentVideoOverrides,
-            [variableId]: value,
-          },
-        },
-      });
-    };
-
-    // Get icon override value
-    const getIconOverrideValue = (variableId: string) => {
-      const overrideValue = currentIconOverrides[variableId];
-      const variableDef = iconVariables.find(v => v.id === variableId);
-      return (overrideValue ?? variableDef?.default_value) as IconSettingsValue | undefined;
-    };
-
-    const handleIconVariableOverrideChange = (variableId: string, value: IconSettingsValue) => {
-      onLayerUpdate(selectedLayerId!, {
-        componentOverrides: {
-          ...selectedLayer.componentOverrides,
-          icon: {
-            ...currentIconOverrides,
-            [variableId]: value,
-          },
-        },
-      });
+    const handleOverridesChange = (newOverrides: Layer['componentOverrides']) => {
+      onLayerUpdate(selectedLayerId!, { componentOverrides: newOverrides });
     };
 
     // Handle detaching from component (converts instance to regular layers)
@@ -1839,13 +1705,11 @@ const RightSidebar = React.memo(function RightSidebar({
       useEditorStore.getState().setSelectedLayerId(null);
     };
 
-    // Handle resetting all overrides to defaults
     const handleResetAllOverrides = () => {
       if (!selectedLayerId) return;
-
       onLayerUpdate(selectedLayerId, {
         componentOverrides: {
-          ...selectedLayer.componentOverrides,
+          ...overrides,
           text: {},
           image: {},
           link: {},
@@ -1885,7 +1749,7 @@ const RightSidebar = React.memo(function RightSidebar({
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem
                         onClick={handleResetAllOverrides}
-                        disabled={Object.keys(currentTextOverrides).length === 0 && Object.keys(currentImageOverrides).length === 0 && Object.keys(currentLinkOverrides).length === 0 && Object.keys(currentAudioOverrides).length === 0 && Object.keys(currentVideoOverrides).length === 0 && Object.keys(currentIconOverrides).length === 0}
+                        disabled={!hasOverrides}
                       >
                         <Icon name="undo" />
                         Reset all overrides
@@ -1904,7 +1768,7 @@ const RightSidebar = React.memo(function RightSidebar({
                   <Icon name="component" className="size-3" />
                 </div>
                 <span>{component.name}</span>
-                {(Object.keys(currentTextOverrides).length > 0 || Object.keys(currentImageOverrides).length > 0 || Object.keys(currentLinkOverrides).length > 0 || Object.keys(currentAudioOverrides).length > 0 || Object.keys(currentVideoOverrides).length > 0 || Object.keys(currentIconOverrides).length > 0) && (
+                {hasOverrides && (
                     <span className="ml-auto text-[10px] italic text-orange-600 dark:text-orange-200">Overridden</span>
                 )}
               </div>
@@ -1924,145 +1788,27 @@ const RightSidebar = React.memo(function RightSidebar({
               isOpen={variablesOpen}
               onToggle={() => setVariablesOpen(!variablesOpen)}
             >
-              <div className="flex flex-col gap-6">
-                {/* Text variable overrides */}
-                {textVariables.length > 0 && (
-                  <div className="flex flex-col gap-3">
-                    {textVariables.map((variable) => (
-                      <div key={variable.id} className="grid grid-cols-3 gap-2">
-                        <Label variant="muted" className="truncate">
-                          {variable.name}
-                        </Label>
-                        <div className="col-span-2 *:w-full">
-                          <RichTextEditor
-                            value={getOverrideValue(variable.id)}
-                            onChange={(val) => handleVariableOverrideChange(variable.id, val)}
-                            placeholder="Enter value..."
-                            fieldGroups={fieldGroups}
-                            allFields={fields}
-                            collections={collections}
-                            withFormatting={true}
-                            showFormattingToolbar={false}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+              <ComponentVariableOverrides
+                variables={allVariables}
+                componentOverrides={overrides}
+                onOverridesChange={handleOverridesChange}
+                fieldGroups={fieldGroups}
+                allFields={fields}
+                collections={collections}
+                isInsideCollectionLayer={!!parentCollectionLayer}
+                renderTextOverride={(variable, value, onChange) => (
+                  <RichTextEditor
+                    value={value}
+                    onChange={onChange}
+                    placeholder="Enter value..."
+                    fieldGroups={fieldGroups}
+                    allFields={fields}
+                    collections={collections}
+                    withFormatting={true}
+                    showFormattingToolbar={false}
+                  />
                 )}
-
-                {/* Image variable overrides */}
-                {imageVariables.length > 0 && (
-                  <div className="flex flex-col gap-3">
-                    {imageVariables.map((variable) => (
-                      <div key={variable.id} className="grid grid-cols-3 gap-2 items-start">
-                        <Label variant="muted" className="truncate pt-2">
-                          {variable.name}
-                        </Label>
-                        <div className="col-span-2">
-                          <ImageSettings
-                            mode="standalone"
-                            value={getImageOverrideValue(variable.id)}
-                            onChange={(val) => handleImageVariableOverrideChange(variable.id, val)}
-                            fieldGroups={fieldGroups}
-                            allFields={fields}
-                            collections={collections}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Link variable overrides */}
-                {linkVariables.length > 0 && (
-                  <div className="flex flex-col gap-3">
-                    {linkVariables.map((variable) => (
-                      <div key={variable.id} className="grid grid-cols-3 gap-2 items-start">
-                        <Label variant="muted" className="truncate pt-2">
-                          {variable.name}
-                        </Label>
-                        <div className="col-span-2">
-                          <LinkSettings
-                            mode="standalone"
-                            value={getLinkOverrideValue(variable.id)}
-                            onChange={(val) => handleLinkVariableOverrideChange(variable.id, val)}
-                            fieldGroups={fieldGroups}
-                            allFields={fields}
-                            collections={collections}
-                            isInsideCollectionLayer={!!parentCollectionLayer}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Audio variable overrides */}
-                {audioVariables.length > 0 && (
-                  <div className="flex flex-col gap-3">
-                    {audioVariables.map((variable) => (
-                      <div key={variable.id} className="grid grid-cols-3 gap-2 items-start">
-                        <Label variant="muted" className="truncate pt-2">
-                          {variable.name}
-                        </Label>
-                        <div className="col-span-2">
-                          <AudioSettings
-                            mode="standalone"
-                            value={getAudioOverrideValue(variable.id)}
-                            onChange={(val) => handleAudioVariableOverrideChange(variable.id, val)}
-                            fieldGroups={fieldGroups}
-                            allFields={fields}
-                            collections={collections}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Video variable overrides */}
-                {videoVariables.length > 0 && (
-                  <div className="flex flex-col gap-3">
-                    {videoVariables.map((variable) => (
-                      <div key={variable.id} className="grid grid-cols-3 gap-2 items-start">
-                        <Label variant="muted" className="truncate pt-2">
-                          {variable.name}
-                        </Label>
-                        <div className="col-span-2">
-                          <VideoSettings
-                            mode="standalone"
-                            value={getVideoOverrideValue(variable.id)}
-                            onChange={(val) => handleVideoVariableOverrideChange(variable.id, val)}
-                            fieldGroups={fieldGroups}
-                            allFields={fields}
-                            collections={collections}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {/* Icon variable overrides */}
-                {iconVariables.length > 0 && (
-                  <div className="flex flex-col gap-3">
-                    {iconVariables.map((variable) => (
-                      <div key={variable.id} className="grid grid-cols-3 gap-2 items-start">
-                        <Label variant="muted" className="truncate pt-2">
-                          {variable.name}
-                        </Label>
-                        <div className="col-span-2">
-                          <IconSettings
-                            mode="standalone"
-                            value={getIconOverrideValue(variable.id)}
-                            onChange={(val) => handleIconVariableOverrideChange(variable.id, val)}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              />
 
               {allVariables.length === 0 && (
                 <div className="flex-1 flex items-center justify-center">
@@ -2406,7 +2152,7 @@ const RightSidebar = React.memo(function RightSidebar({
                 >
                   <div className="grid grid-cols-3">
                     {!(isTextEditingOnCanvas && editingLayerIdOnCanvas === selectedLayerId) && (
-                      <div className="flex items-start gap-1 py-2">
+                      <div className="flex items-start gap-1 py-1">
                         {editingComponentId ? (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>

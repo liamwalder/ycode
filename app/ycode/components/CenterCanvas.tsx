@@ -835,6 +835,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
   // Fetch collection data for all collection layers in the page
   const fetchLayerData = useCollectionLayerStore((state) => state.fetchLayerData);
   const fetchPage = useCollectionLayerStore((state) => state.fetchPage);
+  const invalidationKey = useCollectionLayerStore((state) => state.invalidationKey);
   const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Create a stable string representation of collection layer settings for dependency
@@ -901,7 +902,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
         fetchTimeoutRef.current = null;
       }
     };
-  }, [collectionLayersKey, fetchLayerData, layers]);
+  }, [collectionLayersKey, fetchLayerData, layers, invalidationKey]);
 
   // Get current page
   const currentPage = useMemo(() => pages.find(p => p.id === currentPageId), [pages, currentPageId]);
@@ -1472,7 +1473,7 @@ const CenterCanvas = React.memo(function CenterCanvas({
     allReferencedIds.forEach((collectionId) => {
       fetchReferencedCollectionItems(collectionId);
     });
-  }, [collectionFieldsFromStore, pageCollectionFields, fetchReferencedCollectionItems]);
+  }, [collectionFieldsFromStore, pageCollectionFields, fetchReferencedCollectionItems, invalidationKey]);
 
   // Keyboard shortcuts for undo/redo
   useEffect(() => {

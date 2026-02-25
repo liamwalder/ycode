@@ -67,13 +67,14 @@ export function extractInlineNodesFromRichText(
       });
     } else if (node.type === 'bulletList' || node.type === 'orderedList') {
       // Preserve list nodes as-is - they'll be rendered as block elements
-      // Add the node directly so it can be handled by the renderer
       result.push({
         ...node,
         marks: parentMarks.length > 0 ? parentMarks : undefined,
       });
-      // Add space after list when flattening
       result.push({ type: 'text', text: ' ' });
+    } else if (node.type === 'richTextComponent') {
+      // Preserve embedded component nodes as-is for block rendering
+      result.push(node);
     } else if (node.type === 'listItem') {
       // List items should be handled by their parent list
       // But if we encounter one directly, extract its content
@@ -113,7 +114,7 @@ export function contentHasBlockElements(content: any): boolean {
   // Handle Tiptap doc structure
   if (content.type === 'doc' && Array.isArray(content.content)) {
     return content.content.some((block: any) =>
-      block.type === 'bulletList' || block.type === 'orderedList'
+      block.type === 'bulletList' || block.type === 'orderedList' || block.type === 'richTextComponent'
     );
   }
 
@@ -150,30 +151,15 @@ export function hasBlockElementsWithResolver(
     return false;
   }
 
-  // Recursively check for dynamicVariable nodes that point to rich_text with lists
+  // Recursively check for dynamicVariable nodes that point to rich_text fields
   const checkNode = (node: any): boolean => {
     if (node.type === 'dynamicVariable') {
       const variable = node.attrs?.variable;
       if (variable?.type === 'field' && variable.data?.field_type === 'rich_text') {
-        const fieldId = variable.data.field_id;
-        const relationships = variable.data.relationships;
-        const source = variable.data.source;
-
-        let value: any = resolveValue(fieldId, relationships, source);
-
-        // Parse JSON string if needed
-        if (typeof value === 'string') {
-          try {
-            value = JSON.parse(value);
-          } catch {
-            value = null;
-          }
-        }
-
-        // Check if the resolved value contains block elements
-        if (value && contentHasBlockElements(value)) {
-          return true;
-        }
+        // rich_text CMS fields can contain block elements (lists, etc.) at any time,
+        // and renderBlock uses <div> for paragraphs containing them, so the parent
+        // must also be block-level to avoid <div> inside <p>
+        return true;
       }
     }
 

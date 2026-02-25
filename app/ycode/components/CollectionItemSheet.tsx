@@ -73,7 +73,7 @@ export default function CollectionItemSheet({
   onSuccess,
 }: CollectionItemSheetProps) {
   const { collections, fields, items, updateItem, createItem, setItemStatus } = useCollectionsStore();
-  const { updateItemInLayerData, refetchLayersForCollection } = useCollectionLayerStore();
+  const { updateItemInLayerData, invalidateLayerData, refetchLayersForCollection } = useCollectionLayerStore();
   const { updatePageCollectionItem, refetchPageCollectionItem, pages } = usePagesStore();
   const { currentPageId, openFileManager } = useEditorStore();
   const getAsset = useAssetsStore((state) => state.getAsset);
@@ -367,6 +367,15 @@ export default function CollectionItemSheet({
           if (liveCollectionUpdates) {
             liveCollectionUpdates.broadcastItemUpdate(collectionId, itemId, { values } as any);
           }
+
+          // Invalidate + refetch AFTER the API update completes to avoid
+          // stale data overwriting the optimistic update
+          invalidateLayerData(collectionId);
+          refetchLayersForCollection(collectionId);
+
+          if (isPageLevelItem && currentPageId) {
+            refetchPageCollectionItem(currentPageId);
+          }
         })
         .catch((error) => {
           console.error('Failed to update item:', error);
@@ -374,18 +383,6 @@ export default function CollectionItemSheet({
             description: 'Changes have been reverted.',
           });
         });
-
-      // 4. Background refetch for collection layers
-      setTimeout(() => {
-        refetchLayersForCollection(collectionId);
-      }, 100);
-
-      // 5. Background refetch for page-level data (if dynamic page)
-      if (isPageLevelItem && currentPageId) {
-        setTimeout(() => {
-          refetchPageCollectionItem(currentPageId);
-        }, 100);
-      }
     } else {
       // Create new item (store handles optimistic update & rollback)
       const statusAction = pendingStatusActionRef.current;
@@ -397,7 +394,8 @@ export default function CollectionItemSheet({
             liveCollectionUpdates.broadcastItemCreate(collectionId, newItem);
           }
 
-          // Refetch to sync collection layers
+          // Invalidate + refetch to sync collection layers
+          invalidateLayerData(collectionId);
           setTimeout(() => {
             refetchLayersForCollection(collectionId);
 

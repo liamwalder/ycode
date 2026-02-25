@@ -428,6 +428,7 @@ export default async function PageRenderer({
           isPreview={isPreview}
           translations={translations}
           resolvedAssets={resolvedAssets}
+          components={components}
         />
 
         {/* Inject password form for 401 error pages */}

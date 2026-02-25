@@ -1,0 +1,122 @@
+import { Node, mergeAttributes } from '@tiptap/core';
+import type { Layer, CollectionField, Collection } from '@/types';
+import type { FieldGroup } from '@/lib/collection-field-utils';
+
+export type RichTextComponentOverrides = Layer['componentOverrides'];
+
+/** Context data stored in editor.storage.richTextComponent for node views. */
+export interface RichTextComponentEditorContext {
+  fieldGroups?: FieldGroup[];
+  allFields?: Record<string, CollectionField[]>;
+  collections?: Collection[];
+  isInsideCollectionLayer?: boolean;
+}
+
+declare module '@tiptap/core' {
+  interface Commands<ReturnType> {
+    richTextComponent: {
+      /** Insert a component block into the editor */
+      insertComponent: (attrs: { componentId: string }) => ReturnType;
+      /** Update overrides on the currently selected component node */
+      updateComponentOverrides: (overrides: RichTextComponentOverrides) => ReturnType;
+    };
+  }
+}
+
+/**
+ * Block-level Tiptap node for embedding components in rich-text content.
+ * Stores componentId and componentOverrides as data attributes.
+ * Node view rendering is handled by the consuming editor via extend().
+ */
+export const RichTextComponent = Node.create({
+  name: 'richTextComponent',
+  group: 'block',
+  atom: true,
+  draggable: false,
+
+  addStorage() {
+    return {
+      editorContext: {} as RichTextComponentEditorContext,
+    };
+  },
+
+  addAttributes() {
+    return {
+      componentId: {
+        default: null,
+        parseHTML: (element) => element.getAttribute('data-component-id') || null,
+        renderHTML: (attributes) => {
+          if (!attributes.componentId) return {};
+          return { 'data-component-id': attributes.componentId };
+        },
+      },
+      componentOverrides: {
+        default: null,
+        parseHTML: (element) => {
+          const attr = element.getAttribute('data-component-overrides');
+          if (!attr) return null;
+          try {
+            return JSON.parse(attr);
+          } catch {
+            return null;
+          }
+        },
+        renderHTML: (attributes) => {
+          if (!attributes.componentOverrides) return {};
+          return { 'data-component-overrides': JSON.stringify(attributes.componentOverrides) };
+        },
+      },
+    };
+  },
+
+  parseHTML() {
+    return [{ tag: 'div[data-component-id]' }];
+  },
+
+  renderHTML({ HTMLAttributes }) {
+    return [
+      'div',
+      mergeAttributes(HTMLAttributes, {
+        class: 'rich-text-component-block',
+        'data-type': 'richTextComponent',
+      }),
+      'Component',
+    ];
+  },
+
+  addCommands() {
+    return {
+      insertComponent:
+        (attrs) =>
+          ({ commands }) => {
+            return commands.insertContent({
+              type: this.name,
+              attrs: {
+                componentId: attrs.componentId,
+                componentOverrides: null,
+              },
+            });
+          },
+
+      updateComponentOverrides:
+        (overrides) =>
+          ({ tr, state, dispatch }) => {
+            const { selection } = state;
+            const node = state.doc.nodeAt(selection.from);
+
+            if (!node || node.type.name !== this.name) {
+              return false;
+            }
+
+            if (dispatch) {
+              tr.setNodeMarkup(selection.from, undefined, {
+                ...node.attrs,
+                componentOverrides: overrides,
+              });
+            }
+
+            return true;
+          },
+    };
+  },
+});

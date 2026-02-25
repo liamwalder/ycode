@@ -13,14 +13,14 @@ import type { Layer, Component, ComponentVariable } from '@/types';
  * @param instanceLayerId - The component instance's layer ID used as namespace
  * @returns Transformed layers with remapped IDs and interaction references
  */
-function transformLayerIdsForInstance(layers: Layer[], instanceLayerId: string): Layer[] {
+export function transformLayerIdsForInstance(layers: Layer[], instanceLayerId: string): Layer[] {
   // Build ID map: original ID -> instance-specific ID
   const idMap = new Map<string, string>();
   
   // First pass: collect all layer IDs and generate new ones
   const collectIds = (layerList: Layer[]) => {
     for (const layer of layerList) {
-      const newId = `${instanceLayerId}_${layer.id}`;
+      const newId = `${instanceLayerId}-${layer.id}`;
       idMap.set(layer.id, newId);
       if (layer.children) {
         collectIds(layer.children);
@@ -43,7 +43,7 @@ function transformLayerIdsForInstance(layers: Layer[], instanceLayerId: string):
     if (layer.interactions && layer.interactions.length > 0) {
       transformedLayer.interactions = layer.interactions.map(interaction => ({
         ...interaction,
-        id: `${instanceLayerId}_${interaction.id}`,
+        id: `${instanceLayerId}-${interaction.id}`,
         tweens: interaction.tweens.map(tween => ({
           ...tween,
           layer_id: idMap.get(tween.layer_id) || tween.layer_id,
@@ -66,7 +66,7 @@ function transformLayerIdsForInstance(layers: Layer[], instanceLayerId: string):
  * Apply component variable overrides (or defaults) to layers
  * Recursively finds layers with linked variables and applies override or default values
  */
-function applyComponentOverrides(
+export function applyComponentOverrides(
   layers: Layer[],
   overrides?: Layer['componentOverrides'],
   componentVariables?: ComponentVariable[]
