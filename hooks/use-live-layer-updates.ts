@@ -108,6 +108,11 @@ export function useLiveLayerUpdates(
           handleIncomingLayerMove(payload.payload);
         });
 
+        // Listen for full layer sync (from MCP / server-side changes)
+        channel.on('broadcast', { event: 'layers_full_sync' }, (payload) => {
+          handleIncomingFullSync(payload.payload);
+        });
+
         // Listen for user activity
         channel.on('broadcast', { event: 'user_activity' }, (payload) => {
           handleUserActivity(payload.payload);
@@ -226,6 +231,19 @@ export function useLiveLayerUpdates(
       freshMoveLayer(pageId, payload.layer_id, payload.target_parent_id, payload.target_index);
     }
   }, [pageId]);
+
+  const handleIncomingFullSync = useCallback((payload: { page_id: string; layers: Layer[]; user_id: string }) => {
+    const freshCurrentUserId = useCollaborationPresenceStore.getState().currentUserId;
+    if (!freshCurrentUserId || payload.user_id === freshCurrentUserId) {
+      return;
+    }
+
+    const currentPageId = pageIdRef.current;
+    if (currentPageId && payload.page_id === currentPageId) {
+      const { setDraftLayers } = usePagesStore.getState();
+      setDraftLayers(currentPageId, payload.layers);
+    }
+  }, []);
 
   const processUpdateQueue = useCallback(() => {
     // Get fresh pageId from the ref (this will be the current value)

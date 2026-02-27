@@ -3,6 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getAllPages, getPageById, getPagesByFolder, createPage, updatePage, deletePage } from '@/lib/repositories/pageRepository';
 import { getAllPageFolders } from '@/lib/repositories/pageFolderRepository';
 import { upsertDraftLayers } from '@/lib/repositories/pageLayersRepository';
+import { broadcastPageCreated, broadcastPageUpdated, broadcastPageDeleted, broadcastLayersChanged } from '@/lib/mcp/broadcast';
 
 export function registerPageTools(server: McpServer) {
   server.tool(
@@ -62,12 +63,16 @@ export function registerPageTools(server: McpServer) {
         settings: {},
       });
 
-      await upsertDraftLayers(page.id, [{
+      const initialLayers = [{
         id: 'body',
         name: 'body',
         classes: '',
         children: [],
-      }]);
+      }];
+      await upsertDraftLayers(page.id, initialLayers);
+
+      broadcastPageCreated(page).catch(() => {});
+      broadcastLayersChanged(page.id, initialLayers).catch(() => {});
 
       return { content: [{ type: 'text' as const, text: JSON.stringify(page, null, 2) }] };
     },
@@ -84,6 +89,7 @@ export function registerPageTools(server: McpServer) {
     },
     async ({ page_id, ...data }) => {
       const page = await updatePage(page_id, data);
+      broadcastPageUpdated(page_id, data).catch(() => {});
       return { content: [{ type: 'text' as const, text: JSON.stringify(page, null, 2) }] };
     },
   );
@@ -94,6 +100,7 @@ export function registerPageTools(server: McpServer) {
     { page_id: z.string().describe('The page ID to delete') },
     async ({ page_id }) => {
       await deletePage(page_id);
+      broadcastPageDeleted(page_id).catch(() => {});
       return { content: [{ type: 'text' as const, text: `Page ${page_id} deleted successfully.` }] };
     },
   );

@@ -14,6 +14,7 @@ import {
   applyDesignToLayer,
   ELEMENT_TEMPLATES,
 } from '@/lib/mcp/utils';
+import { broadcastLayersChanged } from '@/lib/mcp/broadcast';
 import { designSchema } from './shared-schemas';
 
 const templateEnum = z.enum(
@@ -218,6 +219,7 @@ EXAMPLE:
       }
 
       await upsertDraftLayers(page_id, layers);
+      broadcastLayersChanged(page_id, layers).catch(() => {});
 
       const refEntries = Object.fromEntries(refMap);
       return {

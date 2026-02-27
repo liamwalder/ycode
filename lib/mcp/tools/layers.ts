@@ -14,6 +14,7 @@ import {
   applyDesignToLayer,
   ELEMENT_TEMPLATES,
 } from '@/lib/mcp/utils';
+import { broadcastLayersChanged } from '@/lib/mcp/broadcast';
 import { designSchema } from './shared-schemas';
 
 const templateEnum = z.enum(
@@ -27,6 +28,7 @@ async function getPageLayers(pageId: string): Promise<Layer[]> {
 
 async function savePageLayers(pageId: string, layers: Layer[]): Promise<void> {
   await upsertDraftLayers(pageId, layers);
+  broadcastLayersChanged(pageId, layers).catch(() => {});
 }
 
 export function registerLayerTools(server: McpServer) {
