@@ -147,27 +147,27 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(function Input({
           {...props}
         />
         {!props.disabled && (
-          <div className="absolute right-px top-px bottom-px items-center rounded-r-[10px] bg-linear-to-l from-input backdrop-blur hidden group-hover:flex pr-1.5">
+          <div className="absolute right-px top-px bottom-px items-center rounded-r-[10px] bg-linear-to-l from-input backdrop-blur hidden group-hover:flex px-1.5">
             <div className="flex flex-col">
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
+                size="icon-xs"
                 onClick={handleIncrement}
-                className="size-2.5 h-3.5 w-4"
+                className="size-2.5"
                 tabIndex={-1}
               >
-                <ChevronUp className="size-2.5" />
+                <ChevronUp />
               </Button>
               <Button
                 type="button"
                 variant="ghost"
-                size="icon"
+                size="icon-xs"
                 onClick={handleDecrement}
-                className="size-2.5 h-3.5 w-4"
+                className="size-2.5"
                 tabIndex={-1}
               >
-                <ChevronDown className="size-2.5" />
+                <ChevronDown />
               </Button>
             </div>
           </div>

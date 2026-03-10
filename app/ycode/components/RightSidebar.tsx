@@ -486,7 +486,8 @@ const RightSidebar = React.memo(function RightSidebar({
         return isTextLayer(layer) || isButtonLayer(layer) || isIconLayer(layer) || isFormInputLayer(layer) || layer.id === 'body' || layer.name === 'slideFraction';
 
       case 'backgrounds':
-        // Background controls: show for all elements (text layers need it for clip-text effects)
+        // Background controls: hide for text layers (image is in the color picker's image tab)
+        if (isTextLayer(layer)) return false;
         if (showTextStyleControls) return true;
         return true;
 
