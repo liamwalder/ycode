@@ -68,9 +68,15 @@ export const contentTemplates: Record<string, BlockTemplate> = {
     name: 'Rich Text',
     template: {
       name: 'richText',
-      classes: ['text-[16px]'],
+      classes: ['flex', 'flex-col', 'gap-[16px]', 'text-[16px]'],
       restrictions: { editText: true },
       design: {
+        layout: {
+          isActive: true,
+          display: 'Flex',
+          flexDirection: 'column',
+          gap: '16px',
+        },
         typography: {
           isActive: true,
           fontSize: '16px',

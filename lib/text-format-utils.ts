@@ -42,62 +42,52 @@ export function getTextStyleLabel(key: string, style?: TextStyle): string {
  * Used in text element templates and can be overridden per layer
  */
 export const DEFAULT_TEXT_STYLES: Record<string, TextStyle> = {
-  // Heading styles (h1-h6) - matching RichTextEditor prose styles
   h1: {
     label: 'Heading 1',
-    classes: 'block text-[30px] font-semibold',
+    classes: 'text-[30px] font-semibold',
     design: {
-      layout: { display: 'block' },
       typography: { fontSize: '30px', fontWeight: 'semibold' },
     },
   },
   h2: {
     label: 'Heading 2',
-    classes: 'block text-[24px] font-semibold',
+    classes: 'text-[24px] font-semibold',
     design: {
-      layout: { display: 'block' },
       typography: { fontSize: '24px', fontWeight: 'semibold' },
     },
   },
   h3: {
     label: 'Heading 3',
-    classes: 'block text-[20px] font-semibold',
+    classes: 'text-[20px] font-semibold',
     design: {
-      layout: { display: 'block' },
       typography: { fontSize: '20px', fontWeight: 'semibold' },
     },
   },
   h4: {
     label: 'Heading 4',
-    classes: 'block text-[18px] font-semibold',
+    classes: 'text-[18px] font-semibold',
     design: {
-      layout: { display: 'block' },
       typography: { fontSize: '18px', fontWeight: 'semibold' },
     },
   },
   h5: {
     label: 'Heading 5',
-    classes: 'block text-[16px] font-semibold',
+    classes: 'text-[16px] font-semibold',
     design: {
-      layout: { display: 'block' },
       typography: { fontSize: '16px', fontWeight: 'semibold' },
     },
   },
   h6: {
     label: 'Heading 6',
-    classes: 'block text-[14px] font-semibold',
+    classes: 'text-[14px] font-semibold',
     design: {
-      layout: { display: 'block' },
       typography: { fontSize: '14px', fontWeight: 'semibold' },
     },
   },
-  // Paragraph style - block display with spacing and line height
   paragraph: {
     label: 'Paragraph',
-    classes: 'block',
-    design: {
-      layout: { display: 'block' },
-    },
+    classes: '',
+    design: {},
   },
   // Inline formatting marks
   bold: {

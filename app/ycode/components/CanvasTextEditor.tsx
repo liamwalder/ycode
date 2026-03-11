@@ -427,7 +427,11 @@ const CanvasTextEditor = forwardRef<CanvasTextEditorHandle, CanvasTextEditorProp
     content: initialContent,
     editorProps: {
       attributes: {
-        class: 'outline-none ycode-text-editor',
+        class: cn(
+          'outline-none ycode-text-editor',
+          layer.name === 'richText' && 'flex flex-col',
+          layer.name === 'richText' && (Array.isArray(layer.classes) ? layer.classes : (layer.classes || '').split(' ')).filter((c: string) => c.startsWith('gap-')).join(' '),
+        ),
       },
       handleKeyDown: (view, event) => {
         // Escape to save and finish editing
