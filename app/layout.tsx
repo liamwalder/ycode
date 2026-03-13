@@ -16,16 +16,12 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({
   children,
-  head,
 }: Readonly<{
   children: React.ReactNode;
-  head: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <head>
-        {head}
-      </head>
+    <html lang="en" suppressHydrationWarning>
+      <head />
       <body className={`${inter.variable} font-sans antialiased text-xs`} suppressHydrationWarning>
         <DarkModeProvider>
           {children}

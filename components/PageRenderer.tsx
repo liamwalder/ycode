@@ -5,6 +5,7 @@ import LayerRenderer from '@/components/LayerRenderer';
 import SliderInitializer from '@/components/SliderInitializer';
 import LightboxInitializer from '@/components/LightboxInitializer';
 import PasswordForm from '@/components/PasswordForm';
+import { renderHeadCode } from '@/lib/parse-head-html';
 import { resolveCustomCodePlaceholders } from '@/lib/resolve-cms-variables';
 import { generateInitialAnimationCSS, type HiddenLayerInfo } from '@/lib/animation-utils';
 import { buildCustomFontsCss, buildFontClassesCss, getGoogleFontLinks } from '@/lib/font-utils';
@@ -55,6 +56,7 @@ interface PageRendererProps {
   isPreview?: boolean;
   translations?: Record<string, any> | null;
   gaMeasurementId?: string | null;
+  globalCustomCodeHead?: string | null;
   globalCustomCodeBody?: string | null;
   ycodeBadge?: boolean;
   passwordProtection?: PasswordProtectionContext;
@@ -94,6 +96,7 @@ export default async function PageRenderer({
   isPreview = false,
   translations,
   gaMeasurementId,
+  globalCustomCodeHead,
   globalCustomCodeBody,
   ycodeBadge = true,
   passwordProtection,
@@ -195,7 +198,12 @@ export default async function PageRenderer({
   }
 
   // Extract custom code from page settings and resolve placeholders for dynamic pages
+  const rawPageCustomCodeHead = page.settings?.custom_code?.head || '';
   const rawPageCustomCodeBody = page.settings?.custom_code?.body || '';
+
+  const pageCustomCodeHead = page.is_dynamic && collectionItem
+    ? resolveCustomCodePlaceholders(rawPageCustomCodeHead, collectionItem, collectionFields)
+    : rawPageCustomCodeHead;
 
   const pageCustomCodeBody = page.is_dynamic && collectionItem
     ? resolveCustomCodePlaceholders(rawPageCustomCodeBody, collectionItem, collectionFields)
@@ -257,7 +265,13 @@ export default async function PageRenderer({
 
   return (
     <>
-      {/* Inject CSS directly - Next.js hoists this to <head> during SSR */}
+      {/* Inject global custom head code — rendered via next/script + React 19 hoisting */}
+      {globalCustomCodeHead && renderHeadCode(globalCustomCodeHead, 'global-head')}
+
+      {/* Inject page-specific custom head code */}
+      {pageCustomCodeHead && renderHeadCode(pageCustomCodeHead, 'page-head')}
+
+      {/* Inject CSS directly — React 19 hoists <style> with precedence to <head> */}
       {generatedCss && (
         <style
           id="ycode-styles"
@@ -273,7 +287,7 @@ export default async function PageRenderer({
         />
       )}
 
-      {/* Load Google Fonts via <link> elements (more reliable than @import) */}
+      {/* Load Google Fonts via <link> elements */}
       {googleFontLinkUrls.map((url, i) => (
         <link
           key={`gfont-${i}`}
@@ -319,7 +333,7 @@ export default async function PageRenderer({
         </>
       )}
 
-      {/* Apply body layer classes to <body> synchronously before paint */}
+      {/* Apply body layer classes synchronously before paint */}
       <script
         dangerouslySetInnerHTML={{
           __html: (() => {
