@@ -1893,20 +1893,18 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
           <IntegrationsContent>{children}</IntegrationsContent>
         ) : (
           <>
-            {/* Left Sidebar - Pages & Layers (hidden in preview mode and CMS) */}
-            {!isPreviewMode && (
-              <div className={activeTab === 'cms' ? 'hidden' : 'contents'}>
-                <LeftSidebar
-                  selectedLayerId={selectedLayerId}
-                  selectedLayerIds={selectedLayerIds}
-                  onLayerSelect={setSelectedLayerId}
-                  currentPageId={currentPageId}
-                  onPageSelect={setCurrentPageId}
-                  liveLayerUpdates={liveLayerUpdates}
-                  liveComponentUpdates={liveComponentUpdates}
-                />
-              </div>
-            )}
+            {/* Left Sidebar - Pages & Layers (hidden in CMS mode) */}
+            <div className={activeTab === 'cms' ? 'hidden' : 'contents'}>
+              <LeftSidebar
+                selectedLayerId={selectedLayerId}
+                selectedLayerIds={selectedLayerIds}
+                onLayerSelect={setSelectedLayerId}
+                currentPageId={currentPageId}
+                onPageSelect={setCurrentPageId}
+                liveLayerUpdates={liveLayerUpdates}
+                liveComponentUpdates={liveComponentUpdates}
+              />
+            </div>
 
             {/* CMS View - kept mounted for instant switching */}
             <div className={activeTab === 'cms' ? 'flex flex-1 min-w-0 overflow-hidden' : 'hidden'}>
@@ -1928,13 +1926,11 @@ export default function YCodeBuilder({ children }: YCodeBuilderProps = {} as YCo
                 liveComponentUpdates={liveComponentUpdates}
               />
 
-              {/* Right Sidebar - Properties (hidden in preview mode) */}
-              {!isPreviewMode && (
-                <RightSidebar
-                  selectedLayerId={selectedLayerId}
-                  onLayerUpdate={handleLayerUpdate}
-                />
-              )}
+              {/* Right Sidebar - Properties */}
+              <RightSidebar
+                selectedLayerId={selectedLayerId}
+                onLayerUpdate={handleLayerUpdate}
+              />
             </div>
           </>
         )}

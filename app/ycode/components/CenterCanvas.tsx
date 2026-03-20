@@ -110,6 +110,83 @@ const viewportSizes: Record<ViewportMode, { width: string; label: string; icon: 
   mobile: { width: '375px', label: 'Mobile', icon: '📱' },
 };
 
+interface ViewportZoomControlsProps {
+  viewportMode: ViewportMode;
+  zoom: number;
+  onViewportChange: (mode: ViewportMode) => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onResetZoom: () => void;
+  onZoomToFit: () => void;
+  onAutofit: () => void;
+}
+
+/** Shared viewport toggle + zoom dropdown used in both the canvas and preview toolbars. */
+function ViewportZoomControls({
+  viewportMode,
+  zoom,
+  onViewportChange,
+  onZoomIn,
+  onZoomOut,
+  onResetZoom,
+  onZoomToFit,
+  onAutofit,
+}: ViewportZoomControlsProps) {
+  return (
+    <div className="flex justify-center gap-2">
+      <Tabs value={viewportMode} onValueChange={(v) => onViewportChange(v as ViewportMode)}>
+        <TabsList className="w-50">
+          <TabsTrigger value="desktop" title="Desktop View">Desktop</TabsTrigger>
+          <TabsTrigger value="tablet" title="Tablet View">Tablet</TabsTrigger>
+          <TabsTrigger value="mobile" title="Mobile View">Phone</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="input"
+            size="sm"
+            className="w-18"
+          >
+            <span className="flex-1 text-center">{Math.round(zoom)}%</span>
+            <Icon name="chevronDown" className="size-2.5! opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent
+          align="end"
+          side="bottom"
+          sideOffset={4}
+          avoidCollisions={false}
+          collisionPadding={0}
+          className="max-h-75! w-38"
+        >
+          <DropdownMenuItem onClick={onZoomIn}>
+            Zoom in
+            <DropdownMenuShortcut>⌘+</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onZoomOut}>
+            Zoom out
+            <DropdownMenuShortcut>⌘-</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onResetZoom}>
+            Zoom to 100%
+            <DropdownMenuShortcut>⌘0</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onZoomToFit}>
+            Fit height
+            <DropdownMenuShortcut>⌘1</DropdownMenuShortcut>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onAutofit}>
+            Fit width
+            <DropdownMenuShortcut>⌘2</DropdownMenuShortcut>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+}
+
 // Component editing canvas sizing
 const COMPONENT_CANVAS_PADDING = 0;
 
@@ -503,6 +580,8 @@ const CenterCanvas = React.memo(function CenterCanvas({
   const [showAddBlockPanel, setShowAddBlockPanel] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const canvasContainerRef = useRef<HTMLDivElement>(null);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const [previewContentHeight, setPreviewContentHeight] = useState(0);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // State for iframe element (for SelectionOverlay)
@@ -725,6 +804,27 @@ const CenterCanvas = React.memo(function CenterCanvas({
     minZoom: 10,
     maxZoom: 1000,
     zoomStep: 10,
+    shortcutsEnabled: !isPreviewMode,
+  });
+
+  // Independent zoom for the preview (second useZoom instance, active only in preview mode)
+  const previewContentWidth = parseInt(viewportSizes[viewportMode].width);
+  const {
+    zoom: previewZoom,
+    zoomIn: previewZoomIn,
+    zoomOut: previewZoomOut,
+    resetZoom: previewResetZoom,
+    zoomToFit: previewZoomToFit,
+    autofit: previewAutofit,
+  } = useZoom({
+    containerRef: previewContainerRef,
+    contentWidth: previewContentWidth,
+    contentHeight: previewContentHeight || previewContentWidth,
+    minZoom: 10,
+    maxZoom: 1000,
+    zoomStep: 10,
+    shortcutsEnabled: isPreviewMode,
+    iframeRef,
   });
 
   // Determine if we should center (zoomed out beyond "zoom to fit" level)
@@ -755,11 +855,16 @@ const CenterCanvas = React.memo(function CenterCanvas({
 
       // Small delay to ensure container dimensions are updated
       setTimeout(() => {
-        autofit();
+        if (isPreviewMode) {
+          previewAutofit();
+        } else {
+          autofit();
+        }
       }, 50);
+
       prevViewportMode.current = viewportMode;
     }
-  }, [viewportMode, autofit]);
+  }, [viewportMode, autofit, isPreviewMode, previewAutofit]);
 
   // Scroll canvas to selected element if it's off-screen
   const prevCanvasLayerIdRef = useRef<string | null>(null);
@@ -792,6 +897,9 @@ const CenterCanvas = React.memo(function CenterCanvas({
       : elTopInScroll;
     scrollEl.scrollTo({ top: Math.max(0, targetScroll), behavior: smooth ? 'smooth' : 'auto' });
   }, [canvasIframeElement, zoom]);
+
+  const scrollCanvasToLayerRef = useRef(scrollCanvasToLayer);
+  scrollCanvasToLayerRef.current = scrollCanvasToLayer;
 
   useEffect(() => {
     if (!selectedLayerId) {
@@ -849,27 +957,16 @@ const CenterCanvas = React.memo(function CenterCanvas({
     return () => clearTimeout(timeout);
   }, [reportedContentHeight, selectedLayerId, canvasIframeElement, isCanvasReady, scrollCanvasToLayer]);
 
-  // Recalculate zoom when content height becomes ready in preview mode
-  const hasRecalculatedForContent = useRef(false);
+  // Scroll to selected layer after breakpoint change (uses ref to avoid stale zoom closure)
   useEffect(() => {
-    // In preview mode, wait for meaningful content height then recalculate once
-    if (isPreviewMode && !hasRecalculatedForContent.current && iframeContentHeight > 600) {
-      hasRecalculatedForContent.current = true;
-      // Delay to ensure everything is ready
-      setTimeout(() => {
-        if (zoomMode === 'autofit') {
-          autofit();
-        } else if (zoomMode === 'fit') {
-          zoomToFit();
-        }
-      }, 150);
-    }
-  }, [isPreviewMode, iframeContentHeight, zoomMode, autofit, zoomToFit]);
+    if (isPreviewMode || !selectedLayerId || !canvasIframeElement || !isCanvasReady) return;
 
-  // Reset flag when preview mode changes
-  useEffect(() => {
-    hasRecalculatedForContent.current = false;
-  }, [isPreviewMode]);
+    const timeout = setTimeout(() => {
+      scrollCanvasToLayerRef.current(selectedLayerId, true, true);
+    }, 300);
+    return () => clearTimeout(timeout);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewportMode]);
 
   // Track container dimensions for dynamic alignment
   useEffect(() => {
@@ -1532,13 +1629,37 @@ const CenterCanvas = React.memo(function CenterCanvas({
     return `/ycode/preview${path === '/' ? '' : path}`;
   }, [currentPage, folders, currentPageCollectionItemId, collectionItemsFromStore, collectionFieldsFromStore, selectedLocale, localeTranslations]);
 
-  // Generate a stable preview key that changes when layers are actually modified
-  const previewKey = useMemo(() => {
-    // Use JSON.stringify of layer structure to detect changes
-    // This is more efficient than Date.now() which would refresh constantly
-    const layerHash = JSON.stringify(layers);
-    return `preview-${currentPageId}-${layerHash.length}`;
-  }, [currentPageId, layers]);
+  // Reload preview iframe every time preview mode opens (covers all change sources:
+  // layer edits, component updates, CMS, layer styles, color variables, etc.)
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  useEffect(() => {
+    if (!isPreviewMode || !previewUrl) return;
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    setIsPreviewLoading(true);
+    iframe.src = previewUrl;
+  }, [isPreviewMode, previewUrl]);
+
+  // Autofit when entering preview mode (not on every breakpoint change)
+  const prevIsPreviewMode = useRef(false);
+  useEffect(() => {
+    if (isPreviewMode && !prevIsPreviewMode.current) {
+      previewAutofit();
+    }
+    prevIsPreviewMode.current = isPreviewMode;
+  }, [isPreviewMode, previewAutofit]);
+
+  const handlePreviewLoad = useCallback(() => {
+    setIsPreviewLoading(false);
+    try {
+      const doc = iframeRef.current?.contentDocument;
+      if (doc) {
+        setPreviewContentHeight(doc.documentElement.scrollHeight);
+      }
+    } catch {
+      // Cross-origin — fall back to 0
+    }
+  }, []);
 
   // Load collection items when dynamic page is selected
   useEffect(() => {
@@ -1685,124 +1806,6 @@ const CenterCanvas = React.memo(function CenterCanvas({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isPreviewMode, handleUndo, handleRedo]);
 
-  // Add zoom gesture handlers for preview mode (when iframe doesn't have them)
-  useEffect(() => {
-    if (!isPreviewMode) return; // Editor iframe handles its own zoom gestures
-
-    const container = canvasContainerRef.current;
-    const iframe = iframeRef.current;
-    if (!container) return;
-
-    // Get iframe's window and document for event listening
-    let iframeWindow: Window | null = null;
-    let iframeDocument: Document | null = null;
-
-    // Wait for iframe to load before attaching listeners
-    const setupIframeListeners = () => {
-      try {
-        iframeWindow = iframe?.contentWindow || null;
-        iframeDocument = iframe?.contentDocument || null;
-
-        if (!iframeWindow || !iframeDocument) return;
-
-        // Attach listeners to iframe's document
-        iframeDocument.addEventListener('wheel', handleWheel, { passive: false, capture: true });
-        iframeDocument.addEventListener('touchstart', handleTouchStart, { passive: true });
-        iframeDocument.addEventListener('touchmove', handleTouchMove, { passive: true });
-        iframeDocument.addEventListener('touchend', handleTouchEnd, { passive: true });
-      } catch (e) {
-        // Cross-origin iframe - fall back to container listeners only
-        console.warn('Cannot access iframe document for zoom gestures:', e);
-      }
-    };
-
-    // Wheel event for Ctrl/Cmd + wheel zoom (includes trackpad pinch on Mac)
-    const handleWheel = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
-        e.stopPropagation();
-
-        // Positive deltaY means zoom out, negative means zoom in
-        const delta = -e.deltaY;
-        handleZoomGesture(delta);
-
-        return false;
-      }
-    };
-
-    // Touch events for pinch zoom on mobile/tablet
-    let lastTouchDistance: number | null = null;
-
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 2) {
-        const touch1 = e.touches[0];
-        const touch2 = e.touches[1];
-        const dx = touch2.clientX - touch1.clientX;
-        const dy = touch2.clientY - touch1.clientY;
-        lastTouchDistance = Math.sqrt(dx * dx + dy * dy);
-      }
-    };
-
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 2 && lastTouchDistance !== null) {
-        const touch1 = e.touches[0];
-        const touch2 = e.touches[1];
-        const dx = touch2.clientX - touch1.clientX;
-        const dy = touch2.clientY - touch1.clientY;
-        const currentDistance = Math.sqrt(dx * dx + dy * dy);
-
-        // Calculate delta and send zoom gesture
-        const delta = (currentDistance - lastTouchDistance) * 2;
-        handleZoomGesture(delta);
-
-        lastTouchDistance = currentDistance;
-      }
-    };
-
-    const handleTouchEnd = () => {
-      lastTouchDistance = null;
-    };
-
-    // Add event listeners to container (fallback for when cursor is outside iframe)
-    container.addEventListener('wheel', handleWheel, { passive: false, capture: true });
-    container.addEventListener('touchstart', handleTouchStart, { passive: true });
-    container.addEventListener('touchmove', handleTouchMove, { passive: true });
-    container.addEventListener('touchend', handleTouchEnd, { passive: true });
-
-    // Setup iframe listeners when iframe loads
-    if (iframe) {
-      iframe.addEventListener('load', setupIframeListeners);
-      // Try to set up immediately in case iframe is already loaded
-      if (iframe.contentDocument?.readyState === 'complete') {
-        setupIframeListeners();
-      }
-    }
-
-    return () => {
-      // Remove container listeners
-      container.removeEventListener('wheel', handleWheel);
-      container.removeEventListener('touchstart', handleTouchStart);
-      container.removeEventListener('touchmove', handleTouchMove);
-      container.removeEventListener('touchend', handleTouchEnd);
-
-      // Remove iframe listeners if they were added
-      if (iframeDocument) {
-        try {
-          iframeDocument.removeEventListener('wheel', handleWheel);
-          iframeDocument.removeEventListener('touchstart', handleTouchStart);
-          iframeDocument.removeEventListener('touchmove', handleTouchMove);
-          iframeDocument.removeEventListener('touchend', handleTouchEnd);
-        } catch (e) {
-          // Ignore errors when removing listeners
-        }
-      }
-
-      if (iframe) {
-        iframe.removeEventListener('load', setupIframeListeners);
-      }
-    };
-  }, [isPreviewMode, handleZoomGesture]);
-
   return (
     <div className="flex-1 min-w-0 flex flex-col relative">
       {/* Top Bar */}
@@ -1894,61 +1897,16 @@ const CenterCanvas = React.memo(function CenterCanvas({
         )}
 
         {/* Viewport Controls */}
-        <div className="flex justify-center gap-2">
-          <Tabs value={viewportMode} onValueChange={(value) => setViewportMode(value as ViewportMode)}>
-            <TabsList className="w-50">
-            <TabsTrigger value="desktop" title="Desktop View">
-              Desktop
-            </TabsTrigger>
-            <TabsTrigger value="tablet" title="Tablet View">
-              Tablet
-            </TabsTrigger>
-            <TabsTrigger value="mobile" title="Mobile View">
-              Phone
-            </TabsTrigger>
-          </TabsList>
-          </Tabs>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="input" size="sm">
-                {Math.round(zoom)}%
-                <div>
-                  <Icon name="chevronDown" className="size-2.5! opacity-50" />
-                </div>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              side="bottom"
-              sideOffset={4}
-              avoidCollisions={false}
-              collisionPadding={0}
-              className="max-h-75! w-38"
-            >
-              <DropdownMenuItem onClick={zoomIn}>
-                Zoom in
-                <DropdownMenuShortcut>⌘+</DropdownMenuShortcut>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={zoomOut}>
-                Zoom out
-                <DropdownMenuShortcut>⌘-</DropdownMenuShortcut>
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={resetZoom}>
-                Zoom to 100%
-                <DropdownMenuShortcut>⌘0</DropdownMenuShortcut>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={zoomToFit}>
-                Fit height
-                <DropdownMenuShortcut>⌘1</DropdownMenuShortcut>
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={autofit}>
-                Fit width
-                <DropdownMenuShortcut>⌘2</DropdownMenuShortcut>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+        <ViewportZoomControls
+          viewportMode={viewportMode}
+          zoom={zoom}
+          onViewportChange={setViewportMode}
+          onZoomIn={zoomIn}
+          onZoomOut={zoomOut}
+          onResetZoom={resetZoom}
+          onZoomToFit={zoomToFit}
+          onAutofit={autofit}
+        />
 
         {/* Undo/Redo Buttons (hidden in preview mode) */}
         {!isPreviewMode && (
@@ -2264,86 +2222,36 @@ const CenterCanvas = React.memo(function CenterCanvas({
         {/* Element picker SVG connector overlay */}
         <ElementPickerOverlay iframeElement={canvasIframeElement} zoom={zoom} />
 
-        {/* Scrollable container with hidden scrollbars */}
+        {/* Scrollable container with hidden scrollbars (editor canvas) */}
         <div
           ref={scrollContainerRef}
           className={cn(
-            'absolute inset-0 z-0',
-            isPreviewMode ? 'overflow-hidden' : 'overflow-auto',
+            'absolute inset-0 z-0 overflow-auto',
             elementPicker?.active && 'cursor-crosshair'
           )}
           style={{
-            // Hide content until initial zoom is calculated to prevent layout jump
             opacity: isCanvasReady ? 1 : 0,
-            // Hide scrollbars but keep scrolling functionality (editor mode only)
-            scrollbarWidth: isPreviewMode ? undefined : 'none', // Firefox
-            msOverflowStyle: isPreviewMode ? undefined : 'none', // IE/Edge
-            WebkitOverflowScrolling: isPreviewMode ? undefined : 'touch', // Smooth scrolling on iOS
+            scrollbarWidth: 'none', // Firefox
+            msOverflowStyle: 'none', // IE/Edge
+            WebkitOverflowScrolling: 'touch',
           }}
           onClick={handleCanvasClick}
         >
-          {/* Hide scrollbars for Webkit browsers (editor mode only) */}
-          {!isPreviewMode && (
-            <style jsx>{`
-              div::-webkit-scrollbar {
-                display: none;
-              }
-            `}</style>
-          )}
+          {/* Hide scrollbars for Webkit browsers */}
+          <style jsx>{`
+            div::-webkit-scrollbar {
+              display: none;
+            }
+          `}</style>
 
-          {/* Preview mode: Scaled iframe with internal scrolling */}
-          {isPreviewMode ? (
-            <div
-              className="w-full h-full flex items-start justify-center"
-              style={{
-                padding: `${CANVAS_BORDER}px`,
-              }}
-            >
-              <div
-                className="bg-white shadow-3xl relative"
-                style={{
-                  width: viewportSizes[viewportMode].width,
-                  // Compensate height for zoom so visual size = 100% after scaling
-                  height: `${((containerHeight - CANVAS_PADDING) / (zoom / 100))}px`,
-                  zoom: zoom / 100,
-                  transition: 'none',
-                }}
-              >
-                {layers.length > 0 ? (
-                  <iframe
-                    key={previewKey}
-                    ref={iframeRef}
-                    src={previewUrl}
-                    className="w-full h-full border-0"
-                    title="Preview"
-                    tabIndex={-1}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center p-12">
-                    <div className="text-center max-w-md">
-                      <div className="w-20 h-20 bg-linear-to-br from-blue-100 to-blue-50 rounded-2xl mx-auto mb-6 flex items-center justify-center">
-                        <Icon name="layout" className="w-10 h-10 text-blue-500" />
-                      </div>
-                      <h2 className="text-2xl font-bold text-gray-900 mb-3">
-                        No content
-                      </h2>
-                      <p className="text-gray-600">
-                        This page has no content to preview.
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            /* Editor mode: Scaled canvas with zoom controls */
-            <div
-              style={{
-                position: 'relative',
-                minWidth: '100%',
-                minHeight: '100%',
-              }}
-            >
+          {/* Editor mode: Scaled canvas with zoom controls - always in DOM, never resized */}
+          <div
+            style={{
+              position: 'relative',
+              minWidth: '100%',
+              minHeight: '100%',
+            }}
+          >
               <div
                 style={{
                   // Width: exact scaled size, min 100% to fill viewport horizontally
@@ -2628,7 +2536,110 @@ const CenterCanvas = React.memo(function CenterCanvas({
                 </div>
               </div>
             </div>
+        </div>
+
+      </div>
+
+      {/* Preview panel - fixed overlay covering sidebars + canvas below the main header.
+          Always rendered so the iframe stays mounted (no reload on toggle). */}
+      <div
+        className="flex flex-col bg-neutral-50 dark:bg-neutral-950"
+        style={{
+          position: 'fixed',
+          top: '3.5rem', // h-14 header height
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 50,
+          display: isPreviewMode ? 'flex' : 'none',
+        }}
+      >
+        {/* Preview toolbar */}
+        <div className="shrink-0 grid grid-cols-3 items-center p-4 border-b bg-background">
+          <div />
+          <ViewportZoomControls
+            viewportMode={viewportMode}
+            zoom={previewZoom}
+            onViewportChange={setViewportMode}
+            onZoomIn={previewZoomIn}
+            onZoomOut={previewZoomOut}
+            onResetZoom={previewResetZoom}
+            onZoomToFit={previewZoomToFit}
+            onAutofit={previewAutofit}
+          />
+          <div className="flex justify-end">
+            {previewUrl && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => window.open(previewUrl, '_blank')}
+              >
+                Open in new tab
+                <Icon name="external-link" />
+              </Button>
+            )}
+          </div>
+        </div>
+
+        {/* Preview iframe area */}
+        <div
+          ref={previewContainerRef}
+          className="flex-1 relative flex items-start overflow-auto"
+          style={{ padding: `${CANVAS_BORDER}px` }}
+        >
+          {isPreviewLoading && (
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-background/80 backdrop-blur-md">
+              <svg
+                className="size-12 text-foreground"
+                viewBox="0 0 24 24"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M11.4241533,0 L11.4241533,5.85877951 L6.024,8.978 L12.6155735,12.7868008 L10.951,13.749 L23.0465401,6.75101349 L23.0465401,12.6152717 L3.39516096,23.9856666 L3.3703726,24 L3.34318129,23.9827156 L0.96,22.4713365 L0.96,16.7616508 L3.36417551,18.1393242 L7.476,15.76 L0.96,11.9090099 L0.96,6.05375516 L11.4241533,0 Z"
+                  className="fill-current"
+                />
+              </svg>
+              <p className="text-sm bg-linear-to-r from-foreground/80 via-foreground/40 to-foreground/80 bg-size-[200%_100%] animate-shimmer bg-clip-text text-transparent">
+                Generating preview...
+              </p>
+            </div>
           )}
+          <div
+            className="bg-white shadow-3xl relative mx-auto"
+            style={{
+              zoom: previewZoom / 100,
+              width: viewportMode === 'desktop' ? '100%' : viewportSizes[viewportMode].width,
+              minWidth: viewportMode === 'desktop' ? viewportSizes[viewportMode].width : undefined,
+              height: previewContentHeight > 0 ? `${previewContentHeight}px` : '100%',
+              flexShrink: 0,
+              transition: 'none',
+            }}
+          >
+            {layers.length > 0 ? (
+              <iframe
+                ref={iframeRef}
+                src={previewUrl}
+                className="w-full h-full border-0"
+                title="Preview"
+                tabIndex={-1}
+                onLoad={handlePreviewLoad}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center p-12">
+                <div className="text-center max-w-md">
+                  <div className="w-20 h-20 bg-linear-to-br from-blue-100 to-blue-50 rounded-2xl mx-auto mb-6 flex items-center justify-center">
+                    <Icon name="layout" className="w-10 h-10 text-blue-500" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-900 mb-3">
+                    No content
+                  </h2>
+                  <p className="text-gray-600">
+                    This page has no content to preview.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
