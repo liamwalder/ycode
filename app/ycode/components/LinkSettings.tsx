@@ -239,6 +239,12 @@ export default function LinkSettings(props: LinkSettingsProps) {
   const currentPage = currentPageId ? pages.find(p => p.id === currentPageId) : null;
   const isCurrentPageDynamic = currentPage?.is_dynamic || false;
 
+  // "Current page item" only makes sense when both pages use the same collection
+  const currentPageCollectionId = currentPage?.settings?.cms?.collection_id || null;
+  const targetPageCollectionId = selectedPage?.settings?.cms?.collection_id || null;
+  const canUseCurrentPageItem = isDynamicPage && isCurrentPageDynamic
+    && !!currentPageCollectionId && currentPageCollectionId === targetPageCollectionId;
+
   // Check if the layer itself is a collection layer
   const isCollectionLayer = !!(layer && getCollectionVariable(layer));
 
@@ -903,8 +909,8 @@ export default function LinkSettings(props: LinkSettingsProps) {
                     <SelectValue placeholder={loadingItems ? 'Loading...' : 'Select...'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {/* Current page item option (when on a dynamic page AND linking to a dynamic page) */}
-                    {isDynamicPage && isCurrentPageDynamic && (
+                    {/* Current page item option (when both pages use the same collection) */}
+                    {canUseCurrentPageItem && (
                       <SelectItem value="current-page">
                         <div className="flex items-center gap-2">
                           Current page item
@@ -919,7 +925,7 @@ export default function LinkSettings(props: LinkSettingsProps) {
                         </div>
                       </SelectItem>
                     )}
-                    {((isDynamicPage && isCurrentPageDynamic) || canUseCurrentCollectionItem) && <SelectSeparator />}
+                    {(canUseCurrentPageItem || canUseCurrentCollectionItem) && <SelectSeparator />}
                     {collectionItems.map((item) => (
                       <SelectItem key={item.id} value={item.id}>
                         {getItemDisplayName(item.id)}
