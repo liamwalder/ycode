@@ -19,7 +19,7 @@ export interface PaginationContext {
   defaultPage?: number;
 }
 
-import { resolveFieldLinkValue } from '@/lib/link-utils';
+import { resolveFieldLinkValue, resolveRefCollectionItemId } from '@/lib/link-utils';
 import { SWIPER_CLASS_MAP, SWIPER_DATA_ATTR_MAP } from '@/lib/templates/utilities';
 import { resolveInlineVariables, resolveInlineVariablesFromData } from '@/lib/inline-variables';
 import { buildLayerTranslationKey, getTranslationByKey, hasValidTranslationValue, getTranslationValue } from '@/lib/localisation-utils';
@@ -3572,11 +3572,19 @@ function layerToHtml(
               if (linkedPage.is_dynamic && linkSettings.page.collection_item_id && collectionItemSlugs) {
                 let itemSlug: string | undefined;
 
-                // Handle special "current" keywords - use the current collection item ID
+                // Handle special "current" keywords and reference field resolution
                 if (linkSettings.page.collection_item_id === 'current-page' ||
                     linkSettings.page.collection_item_id === 'current-collection') {
                   // Use the current collection item's slug (from effectiveCollectionItemId)
                   itemSlug = effectiveCollectionItemId ? collectionItemSlugs[effectiveCollectionItemId] : undefined;
+                } else if (linkSettings.page.collection_item_id.startsWith('ref-')) {
+                  // Resolve via reference field value from current item data
+                  const refItemId = resolveRefCollectionItemId(
+                    linkSettings.page.collection_item_id,
+                    pageCollectionItemData,
+                    effectiveCollectionItemData
+                  );
+                  itemSlug = refItemId ? collectionItemSlugs[refItemId] : undefined;
                 } else {
                   // Use the specific item slug
                   itemSlug = collectionItemSlugs[linkSettings.page.collection_item_id];

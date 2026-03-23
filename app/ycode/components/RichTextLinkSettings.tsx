@@ -38,7 +38,8 @@ import { collectionsApi } from '@/lib/api';
 import { getLayerIcon, getLayerName, getCollectionVariable } from '@/lib/layer-utils';
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import PageSelector from './PageSelector';
-import { filterFieldGroupsByType, flattenFieldGroups, LINK_FIELD_TYPES, type FieldGroup } from '@/lib/collection-field-utils';
+import { filterFieldGroupsByType, flattenFieldGroups, LINK_FIELD_TYPES, buildReferenceItemOptions, type FieldGroup } from '@/lib/collection-field-utils';
+import LinkItemOptions from './LinkItemOptions';
 
 export interface RichTextLinkSettingsProps {
   /** Current link settings */
@@ -201,6 +202,12 @@ export default function RichTextLinkSettings({
   const collectionGroup = fieldGroups?.find(g => g.source === 'collection');
   const hasCollectionFields = !!(collectionGroup && collectionGroup.fields.length > 0 && isInsideCollectionLayer);
   const canUseCurrentCollectionItem = hasCollectionFields || isCollectionLayer;
+
+  // Find reference fields that point to the target page's collection
+  const referenceItemOptions = useMemo(
+    () => buildReferenceItemOptions(isDynamicPage, targetPageCollectionId, fieldGroups),
+    [isDynamicPage, targetPageCollectionId, fieldGroups]
+  );
 
   // Get collection ID from dynamic page settings
   const pageCollectionId = selectedPage?.settings?.cms?.collection_id || null;
@@ -494,23 +501,10 @@ export default function RichTextLinkSettings({
   // Get asset info for display
   const selectedAsset = assetId ? getAsset(assetId) : null;
 
-  // Get display name for selected collection item
-  const getItemDisplayName = useCallback(
-    (itemId: string) => {
-      if (itemId === 'current') return 'Current Item';
-      const item = collectionItems.find((i) => i.id === itemId);
-      if (!item) return itemId;
-
-      const collectionFields = pageCollectionId ? collectionsStoreFields[pageCollectionId] : [];
-      const nameField = collectionFields?.find((field) => field.key === 'name');
-      if (nameField && item.values[nameField.id]) {
-        return item.values[nameField.id];
-      }
-
-      const values = Object.values(item.values);
-      return values[0] || itemId;
-    },
-    [collectionItems, pageCollectionId, collectionsStoreFields]
+  // Fields for the linked page's collection (for display names)
+  const linkedPageCollectionFields = useMemo(
+    () => pageCollectionId ? collectionsStoreFields[pageCollectionId] || [] : [],
+    [pageCollectionId, collectionsStoreFields]
   );
 
   return (
@@ -666,26 +660,13 @@ export default function RichTextLinkSettings({
                     <SelectValue placeholder={loadingItems ? 'Loading...' : 'Select...'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {canUseCurrentPageItem && (
-                      <SelectItem value="current-page">
-                        <div className="flex items-center gap-2">
-                          Current page item
-                        </div>
-                      </SelectItem>
-                    )}
-                    {canUseCurrentCollectionItem && (
-                      <SelectItem value="current-collection">
-                        <div className="flex items-center gap-2">
-                          Current collection item
-                        </div>
-                      </SelectItem>
-                    )}
-                    {(canUseCurrentPageItem || canUseCurrentCollectionItem) && <SelectSeparator />}
-                    {collectionItems.map((item) => (
-                      <SelectItem key={item.id} value={item.id}>
-                        {getItemDisplayName(item.id)}
-                      </SelectItem>
-                    ))}
+                    <LinkItemOptions
+                      canUseCurrentPageItem={canUseCurrentPageItem}
+                      canUseCurrentCollectionItem={canUseCurrentCollectionItem}
+                      referenceItemOptions={referenceItemOptions}
+                      collectionItems={collectionItems}
+                      collectionFields={linkedPageCollectionFields}
+                    />
                   </SelectContent>
                 </Select>
               </div>

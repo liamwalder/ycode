@@ -12,8 +12,9 @@ import { buildCustomFontsCss, buildFontClassesCss, getGoogleFontLinks } from '@/
 import { collectLayerAssetIds, getAssetProxyUrl } from '@/lib/asset-utils';
 import { getAllPages } from '@/lib/repositories/pageRepository';
 import { getAllPageFolders } from '@/lib/repositories/pageFolderRepository';
-import { getItemWithValues } from '@/lib/repositories/collectionItemRepository';
+import { getItemWithValues, getItemsWithValues } from '@/lib/repositories/collectionItemRepository';
 import { getFieldsByCollectionId } from '@/lib/repositories/collectionFieldRepository';
+import { REF_PAGE_PREFIX, REF_COLLECTION_PREFIX } from '@/lib/link-utils';
 import { getClassesString } from '@/lib/layer-utils';
 import type { Layer, Component, Page, CollectionItemWithValues, CollectionField, Locale, PageFolder } from '@/types';
 
@@ -108,13 +109,14 @@ export default async function PageRenderer({
   const resolvedLayers = layers || [];
 
   // Scan layers for collection_item_ids referenced in link settings
-  // Excludes special keywords like 'current-page' and 'current-collection' which are resolved at runtime
+  // Excludes special keywords and ref-* patterns which are resolved at runtime
   const findCollectionItemIds = (layers: Layer[]): Set<string> => {
     const itemIds = new Set<string>();
     const specialKeywords = ['current-page', 'current-collection'];
     const scan = (layer: Layer) => {
       const itemId = layer.variables?.link?.page?.collection_item_id;
-      if (layer.variables?.link?.type === 'page' && itemId && !specialKeywords.includes(itemId)) {
+      if (layer.variables?.link?.type === 'page' && itemId
+        && !specialKeywords.includes(itemId) && !itemId.startsWith('ref-')) {
         itemIds.add(itemId);
       }
       if (layer.children) {
@@ -123,6 +125,30 @@ export default async function PageRenderer({
     };
     layers.forEach(scan);
     return itemIds;
+  };
+
+  // Scan layers for ref-* links and collect target collection IDs
+  // so we can pre-fetch all items' slugs for those collections
+  const findRefTargetCollectionIds = (layers: Layer[], allPages: Page[]): Set<string> => {
+    const collectionIds = new Set<string>();
+    const scan = (layer: Layer) => {
+      const itemId = layer.variables?.link?.page?.collection_item_id;
+      const pageId = layer.variables?.link?.page?.id;
+      if (layer.variables?.link?.type === 'page' && itemId
+        && (itemId.startsWith(REF_PAGE_PREFIX) || itemId.startsWith(REF_COLLECTION_PREFIX))
+        && pageId) {
+        const targetPage = allPages.find(p => p.id === pageId);
+        const targetCollectionId = targetPage?.settings?.cms?.collection_id;
+        if (targetCollectionId) {
+          collectionIds.add(targetCollectionId);
+        }
+      }
+      if (layer.children) {
+        layer.children.forEach(scan);
+      }
+    };
+    layers.forEach(scan);
+    return collectionIds;
   };
 
   // Extract collection item slugs from resolved collection layers
@@ -189,6 +215,21 @@ export default async function PageRenderer({
         const slugField = fields.find(f => f.key === 'slug');
 
         if (slugField && item.values[slugField.id]) {
+          collectionItemSlugs[item.id] = item.values[slugField.id];
+        }
+      }
+    }
+
+    // Fetch slugs for all items in collections targeted by ref-* links
+    const refTargetCollectionIds = findRefTargetCollectionIds(resolvedLayers, pages);
+    for (const collId of refTargetCollectionIds) {
+      const fields = await getFieldsByCollectionId(collId, false);
+      const slugField = fields.find(f => f.key === 'slug');
+      if (!slugField) continue;
+
+      const { items } = await getItemsWithValues(collId, false);
+      for (const item of items) {
+        if (item.values[slugField.id]) {
           collectionItemSlugs[item.id] = item.values[slugField.id];
         }
       }
